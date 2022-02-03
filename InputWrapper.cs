@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Unity_TouchScreenInput {
+namespace Unity_TouchScreenInputWrapper {
     public class InputWrapper : MonoBehaviour
     {
         private static InputWrapper instance;
