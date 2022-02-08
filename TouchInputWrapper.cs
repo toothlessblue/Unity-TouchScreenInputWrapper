@@ -1,11 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 namespace Unity_TouchScreenInputWrapper {
-    public class InputWrapper : MonoBehaviour
+    public class TouchInputWrapper : MonoBehaviour
     {
-        private static InputWrapper instance;
+        private static TouchInputWrapper instance;
 
         [SerializeField]
         private float holdThreshold = .5f;
@@ -13,7 +14,8 @@ namespace Unity_TouchScreenInputWrapper {
         [SerializeField]
         private float dragDistanceThreshold = .5f;
 
-        // For displaying in unity editor
+        [Space(20)]
+        [Header("Below fields are only for displaying the current state")]
         [SerializeField]
         private TouchType holding;
 
@@ -31,6 +33,9 @@ namespace Unity_TouchScreenInputWrapper {
 
         [SerializeField]
         private TouchType dragging;
+
+        [SerializeField]
+        private bool draggedThisFrame;
 
         private float timeOfLastTouchDown;
 
@@ -58,13 +63,13 @@ namespace Unity_TouchScreenInputWrapper {
         private Vector2 touchPosDelta;
 
     private void Awake() {
-        if (InputWrapper.instance) {
+        if (TouchInputWrapper.instance) {
             Debug.LogWarning(
                 "Multiple instances of InputWrapper exist, this doesn't affect usage, but will affect performance and is un-needed."
             );
         }
 
-        InputWrapper.instance = this;
+        TouchInputWrapper.instance = this;
     }
 
     void Update() {
@@ -72,6 +77,7 @@ namespace Unity_TouchScreenInputWrapper {
         this.touchPosDelta = this.touchCurrentPos - this.lastTouchPos;
         this.touchedThisFrame = TouchType.None;
         this.droppedThisFrame = false;
+        this.draggedThisFrame = false;
 
         if (this.holding != TouchType.None) {
             this.heldThisFrame = TouchType.None;
@@ -106,6 +112,7 @@ namespace Unity_TouchScreenInputWrapper {
         if ((this.touchCurrentPos - this.touchStartPos).magnitude > this.dragDistanceThreshold &&
             this.touching != TouchType.None && this.holding == TouchType.None) {
             this.dragging = this.touching;
+            this.draggedThisFrame = true;
         }
 
         this.lastTouchPos = this.touchCurrentPos;
@@ -114,73 +121,83 @@ namespace Unity_TouchScreenInputWrapper {
     /// <summary>
     /// Returns true on the frame the user lifts their finger from the screen, if they do not drag or hold longer than the threshold.
     /// </summary>
-    public static bool getTouch() => InputWrapper.instance.touchedThisFrame == TouchType.Single;
+    public static bool getTouch() => TouchInputWrapper.instance.touchedThisFrame == TouchType.Single;
 
     /// <summary>
     /// Returns true on the frame the user lifts their finger from the screen, if they do not drag or hold longer than the threshold, and they were using two fingers
     /// </summary>
-    public static bool getDoubleTouch() => InputWrapper.instance.touchedThisFrame == TouchType.Double;
+    public static bool getDoubleTouch() => TouchInputWrapper.instance.touchedThisFrame == TouchType.Double;
 
     /// <summary>
     /// Returns true on the frame the user puts their finger on the screen
     /// </summary>
-    public static bool getDown() => InputWrapper.instance.touchDown == TouchType.Single;
+    public static bool getDown() => TouchInputWrapper.instance.touchDown == TouchType.Single;
 
     /// <summary>
     /// Returns true on the frame the user puts their finger on the screen
     /// </summary>
-    public static bool getDoubleDown() => InputWrapper.instance.touchDown == TouchType.Double;
+    public static bool getDoubleDown() => TouchInputWrapper.instance.touchDown == TouchType.Double;
 
     /// <summary>
     /// Returns true if the user is currently touching the screen, regardless of other factors
     /// </summary>
-    public static bool getTouching() => InputWrapper.instance.touching == TouchType.Single;
+    public static bool getTouching() => TouchInputWrapper.instance.touching == TouchType.Single;
 
     /// <summary>
     /// Returns true on the frame the user has been touching up the screen for longer than the specified threshold time.
     /// </summary>
-    public static bool getHeld() => InputWrapper.instance.heldThisFrame == TouchType.Single;
+    public static bool getHeld() => TouchInputWrapper.instance.heldThisFrame == TouchType.Single;
 
     /// <summary>
     /// Returns true if the user did not hold, and did not touch, and DID move position further than the threshold.
     /// </summary>
-    public static bool isDragging() => InputWrapper.instance.dragging == TouchType.Single;
+    public static bool isDragging() => TouchInputWrapper.instance.dragging == TouchType.Single;
 
     /// <summary>
     /// Returns true if the user did not hold, and did not touch, and DID move position further than the threshold, and they were using two fingers
     /// </summary>
-    public static bool isDoubleDragging() => InputWrapper.instance.dragging == TouchType.Double;
+    public static bool isDoubleDragging() => TouchInputWrapper.instance.dragging == TouchType.Double;
 
     /// <summary>
     /// Returns true on the frame the user lets got when dragging. I.E. returns true when isDragging begins returning false again
     /// </summary>
-    public static bool getDropped() => InputWrapper.instance.droppedThisFrame;
+    public static bool getDropped() => TouchInputWrapper.instance.droppedThisFrame;
 
+    /// <summary>
+    /// Returns true on the frame a drag begins
+    /// </summary>
+    public static bool getDragged() => TouchInputWrapper.instance.draggedThisFrame;
+
+    /// <summary>
+    /// Returns the position the last touch began at
+    /// </summary>
+    public static Vector2 touchStartPosition() => TouchInputWrapper.instance.touchStartPos;
+    
     /// <summary>
     /// Returns the current touch position
     /// </summary>
-    public static Vector2 touchPosition() => InputWrapper.instance.touchCurrentPos;
+    public static Vector2 touchPosition() => TouchInputWrapper.instance.touchCurrentPos;
 
     /// <summary>
     /// Returns the change in touch position this frame
     /// </summary>
-    public static Vector2 touchDelta() => InputWrapper.instance.touchPosDelta;
+    public static Vector2 touchDelta() => TouchInputWrapper.instance.touchPosDelta;
 
     /// <summary>
     /// Returns true if the user is currently dragging within the specified rect transform
     /// </summary>
     /// <param name="rectTransform">Transform to check with</param>
     public static bool isDraggingWithinRect(RectTransform rectTransform) {
-        Vector2 localMouse = rectTransform.InverseTransformPoint(InputWrapper.instance.touchStartPos);
+        Vector2 localMouse = rectTransform.InverseTransformPoint(TouchInputWrapper.instance.touchStartPos);
         return rectTransform.rect.Contains(localMouse);
     }
 
     /// <summary>
     /// Returns true if the user is dragging, touched this frame, or held this frame
     /// </summary>
-    public static bool interactedThisFrame() => InputWrapper.instance.dragging != TouchType.None ||
-                                                InputWrapper.instance.touchedThisFrame != TouchType.None ||
-                                                InputWrapper.instance.heldThisFrame != TouchType.None;
+    public static bool interactedThisFrame() => TouchInputWrapper.instance.dragging != TouchType.None ||
+                                                TouchInputWrapper.instance.touchedThisFrame != TouchType.None ||
+                                                TouchInputWrapper.instance.heldThisFrame != TouchType.None;
 
     private enum TouchType
     {
