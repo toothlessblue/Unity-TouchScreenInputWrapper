@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 namespace Unity_TouchScreenInputWrapper
@@ -10,10 +7,13 @@ namespace Unity_TouchScreenInputWrapper
         private static TouchInputWrapper instance;
 
         [SerializeField]
-        private float holdThreshold = .5f;
+        private float holdThreshold = 0.5f;
 
         [SerializeField]
-        private float dragDistanceThreshold = .5f;
+        private float dragDistanceThreshold = 0.5f;
+        
+        [SerializeField]
+        private float pinchThreshold = 0.5f;
 
         [Space(20)]
         [Header("Below fields are only for displaying the current state")]
@@ -38,6 +38,15 @@ namespace Unity_TouchScreenInputWrapper
         [SerializeField]
         private bool draggedThisFrame;
 
+        [SerializeField]
+        private bool pinching;
+        
+        [SerializeField]
+        private float pinchDelta;
+        
+        [SerializeField]
+        private float lastPinchDistance;
+
         private float timeOfLastTouchDown;
 
         private TouchType touchDown {
@@ -52,9 +61,7 @@ namespace Unity_TouchScreenInputWrapper
             }
         }
 
-        private bool touchUp {
-            get => Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1);
-        }
+        private bool touchUp => Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1);
 
         private Vector2 touchStartPos;
         private Vector2 touchEndPos;
@@ -73,8 +80,9 @@ namespace Unity_TouchScreenInputWrapper
             TouchInputWrapper.instance = this;
         }
 
-        void Update() {
+        private void Update() {
             this.touchCurrentPos = Input.mousePosition;
+            
             this.touchPosDelta = this.touchCurrentPos - this.lastTouchPos;
             this.touchedThisFrame = TouchType.None;
             this.droppedThisFrame = false;
@@ -91,6 +99,7 @@ namespace Unity_TouchScreenInputWrapper
                 this.touchStartPos = this.touchCurrentPos;
             }
 
+            // Reset on touch up
             if (this.touchUp) {
                 if (this.holding == TouchType.None && this.dragging == TouchType.None) {
                     this.touchedThisFrame = this.touching;
@@ -102,16 +111,46 @@ namespace Unity_TouchScreenInputWrapper
                 this.touching = TouchType.None;
                 this.holding = TouchType.None;
                 this.touchEndPos = this.touchCurrentPos;
+                
+                this.pinching = false;
+                this.pinchDelta = 0;
+                this.lastPinchDistance = 0;
             }
 
+            // Holding
             if (this.touching != TouchType.None && Time.time - this.timeOfLastTouchDown > this.holdThreshold &&
                 this.holding == TouchType.None && this.dragging == TouchType.None) {
                 this.holding = this.touching;
                 this.heldThisFrame = this.touching;
             }
 
-            if ((this.touchCurrentPos - this.touchStartPos).magnitude > this.dragDistanceThreshold &&
-                this.touching != TouchType.None && this.holding == TouchType.None) {
+            // Pinching
+            if (this.touching == TouchType.Double && SystemInfo.deviceType != DeviceType.Desktop) {
+                Touch touch0 = Input.GetTouch(0);
+                Touch touch1 = Input.GetTouch(1);
+                float distance = Vector2.Distance(touch0.position, touch1.position);
+
+                if (distance > this.pinchThreshold) {
+                    this.pinching = true;
+                    this.lastPinchDistance = distance;
+                }
+            }
+
+            if (this.pinching) {
+                Touch touch0 = Input.GetTouch(0);
+                Touch touch1 = Input.GetTouch(1);
+                float distance = Vector2.Distance(touch0.position, touch1.position);
+
+                this.pinchDelta = distance - this.lastPinchDistance;
+                this.lastPinchDistance = distance;
+            }
+
+            if (SystemInfo.deviceType == DeviceType.Desktop) {
+                this.pinchDelta = Input.mouseScrollDelta.y;
+            }
+            
+            // Dragging
+            if (!this.pinching && (this.touchCurrentPos - this.touchStartPos).magnitude > this.dragDistanceThreshold && this.touching != TouchType.None && this.holding == TouchType.None) {
                 this.dragging = this.touching;
                 this.draggedThisFrame = true;
             }
@@ -200,12 +239,21 @@ namespace Unity_TouchScreenInputWrapper
             return rectTransform.rect.Contains(localMouse);
         }
 
+        public static bool isPinching() {
+            return TouchInputWrapper.instance.pinching || SystemInfo.deviceType == DeviceType.Desktop;
+        }
+
+        public static float getPinchDelta() {
+            return TouchInputWrapper.instance.pinchDelta;
+        }
+
         /// <summary>
-        /// Returns true if the user is dragging, touched this frame, or held this frame
+        /// Returns true if the user is dragging, touched this frame, held this frame, or pinching
         /// </summary>
         public static bool interactedThisFrame() => TouchInputWrapper.instance.dragging != TouchType.None ||
                                                     TouchInputWrapper.instance.touchedThisFrame != TouchType.None ||
-                                                    TouchInputWrapper.instance.heldThisFrame != TouchType.None;
+                                                    TouchInputWrapper.instance.heldThisFrame != TouchType.None ||
+                                                    TouchInputWrapper.instance.pinching;
 
         private enum TouchType
         {
